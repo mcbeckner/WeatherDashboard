@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bifrost WMS Debugger</title>
+    <title>Bifrost WMS Debugger (Advanced)</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; font-family: sans-serif; }
@@ -18,7 +18,8 @@
             background: rgba(0, 0, 0, 0.85); color: #0f0;
             font-family: monospace; font-size: 12px;
             padding: 10px; overflow-y: auto; z-index: 2000;
-            border-radius: 4px; pointer-events: none;
+            border-radius: 4px; pointer-events: none; /* Allows clicks to pass through to map */
+            border: 1px solid #00ff00;
         }
         select, button { padding: 5px; border-radius: 3px; border: none; }
         button { cursor: pointer; background: #007bff; color: white; font-weight: bold; }
@@ -29,15 +30,15 @@
 <body>
 
     <div id="controls">
-        <strong>WMS Debugger</strong>
+        <strong>Bifrost WMS Debugger</strong>
         <div class="control-group">
             <label>Layer:</label>
             <select id="layer-select">
                 <!-- AFWeather / Bifrost Layers -->
                 <option value="AFW_Radar">AFW Global Radar (Bifrost)</option>
                 <option value="AFW_Cloud">AFW Global Cloud (Bifrost)</option>
-                <option value="AFW_Vis">AFW Global Visibility (Bifrost)</option>
-                <!-- NOAA Backup Layers -->
+                <option value="AFW_Vis">AFW Global Visible (Bifrost)</option>
+                <!-- NOAA Backup Layers (for comparison) -->
                 <option value="NOAA_Radar">NOAA NEXRAD (Public)</option>
                 <option value="NOAA_Sat">NOAA Satellite (Public)</option>
             </select>
@@ -47,7 +48,8 @@
             <button id="clear-btn" style="background:#dc3545;">Clear Map</button>
         </div>
         <div style="margin-left:auto; font-size: 0.8em; color: #aaa;">
-            Ensure you are logged into AFWeather in another tab first.
+            <p style="margin:0;">1. Open new tab, log into <a href="https://datadocs.afweather.mil/" target="_blank" style="color:yellow;">DataDocs (CAC)</a>.</p>
+            <p style="margin:0;">2. **Crucial**: Open Browser Developer Tools (F12) -> Network tab.</p>
         </div>
     </div>
 
@@ -59,10 +61,10 @@
         // 1. Initialize Map
         const map = L.map('map').setView([39.8283, -98.5795], 4); // Center of US
 
-        // Base Layer (OpenTopoMap - No API Key needed)
+        // Base Layer (OpenTopoMap - No API Key needed, clean terrain)
         L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
             maxZoom: 17,
-            attribution: 'Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap (CC-BY-SA)'
+            attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)'
         }).addTo(map);
 
         let currentWmsLayer = null;
@@ -73,7 +75,7 @@
             const time = new Date().toLocaleTimeString();
             logBox.innerHTML += `<div>[${time}] ${msg}</div>`;
             logBox.scrollTop = logBox.scrollHeight;
-            console.log(msg);
+            console.log(`[LOG] ${msg}`); // Also log to console
         }
 
         document.getElementById('load-btn').addEventListener('click', () => {
@@ -96,38 +98,43 @@
             let layerName = '';
             let format = 'image/png';
             let attribution = '';
+            let errorHint = '';
             
             // --- CONFIGURATION BLOCK ---
             if (type === 'AFW_Radar') {
-                // Known Bifrost Endpoint
                 url = 'https://generated.afweather.mil/wms/global_vis?';
-                layerName = 'Global_Radar';
+                layerName = 'Global_Radar'; // This is the presumed layer name
                 attribution = 'AFWeather Bifrost';
+                errorHint = 'Check CAC, AFWeather Login, and browser security settings for generated.afweather.mil. Is the layer name correct?';
             } 
             else if (type === 'AFW_Cloud') {
                 url = 'https://generated.afweather.mil/wms/global_vis?';
-                layerName = 'Global_Cloud';
+                layerName = 'Global_Cloud'; // This is the presumed layer name
                 attribution = 'AFWeather Bifrost';
+                errorHint = 'Check CAC, AFWeather Login, and browser security settings for generated.afweather.mil. Is the layer name correct?';
             }
             else if (type === 'AFW_Vis') {
                 url = 'https://generated.afweather.mil/wms/global_vis?';
-                layerName = 'Global_Vis'; // Guessing layer name based on convention
+                layerName = 'Global_Vis'; // This is the presumed layer name
                 attribution = 'AFWeather Bifrost';
+                errorHint = 'Check CAC, AFWeather Login, and browser security settings for generated.afweather.mil. Is the layer name correct?';
             }
             else if (type === 'NOAA_Radar') {
                 url = 'https://nowcoast.noaa.gov/arcgis/services/nowcoast/radar_meteo_imagery_nexrad_time/MapServer/WMSServer';
                 layerName = '1';
                 attribution = 'NOAA nowCoast';
+                errorHint = 'Public layer, shouldn\'t have auth issues. Check network connectivity.';
             }
             else if (type === 'NOAA_Sat') {
                 url = 'https://nowcoast.noaa.gov/arcgis/services/nowcoast/sat_meteo_imagery_time/MapServer/WMSServer';
-                layerName = '1'; // Visible
+                layerName = '1'; 
                 attribution = 'NOAA nowCoast';
+                errorHint = 'Public layer, shouldn\'t have auth issues. Check network connectivity.';
             }
 
-            log(`Configuring WMS: ${type}`);
+            log(`Attempting to load: ${type}`);
             log(`URL: ${url}`);
-            log(`Layer Name: ${layerName}`);
+            log(`WMS Layer: ${layerName}`);
 
             try {
                 currentWmsLayer = L.tileLayer.wms(url, {
@@ -138,31 +145,32 @@
                     attribution: attribution,
                     crs: L.CRS.EPSG3857, // Standard Web Mercator
                     opacity: 0.65,
-                    uppercase: true // Sometimes military servers require uppercase params
+                    uppercase: true, // Some WMS servers are case-sensitive for parameters/layer names
+                    crossOrigin: true // Important for allowing image data to be read if needed, but also affects security context
                 });
 
-                // --- Event Listeners for Debugging --- //
-                
                 currentWmsLayer.on('loading', function() {
-                    log("Network: Requesting tiles...");
+                    log("Status: WMS layer `loading` event fired. Tiles being requested.");
                 });
 
                 currentWmsLayer.on('load', function() {
-                    log("Network: Tiles finished loading (Success/200 OK).");
-                    log("NOTE: If map is empty, the tiles might be transparent.");
+                    log("Status: WMS layer `load` event fired. All visible tiles *may* have loaded successfully.");
+                    log("Note: If map is empty after 'load' event, check `opacity` or if WMS images are transparent by design.");
                 });
-
-                currentWmsLayer.on('tileerror', function(error) {
-                    log("ERROR: Failed to load tile.");
-                    log("Possible causes: 1. CAC Cert required. 2. CORS Block. 3. Wrong Layer Name.");
-                    console.error(error);
+                
+                currentWmsLayer.on('tileerror', function(e) {
+                    // This event object 'e' typically contains 'tile' and 'url'.
+                    // The actual HTTP status code is logged to the browser's console.
+                    log(`ERROR: A tile failed for URL: ${e.url}. Check browser's Network tab (F12) for exact HTTP status. Hints: ${errorHint}`);
+                    console.error("Leaflet tileerror event:", e); // This is where the real error object often lives.
                 });
 
                 currentWmsLayer.addTo(map);
-                log("Layer added to map object.");
+                log("Action: Layer added to map. Now checking browser's Network tab for requests...");
 
             } catch (e) {
-                log("CRITICAL ERROR: " + e.message);
+                log(`CRITICAL JS ERROR during layer creation: ${e.message}`);
+                console.error("WMS Layer Creation Error:", e);
             }
         }
     </script>
