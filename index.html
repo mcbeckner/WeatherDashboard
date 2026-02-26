@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pro Aviation Dashboard v2.6 (Terrain + GitHub Ready)</title>
+    <title>Pro Aviation Dashboard v2.7 (Bifrost Style)</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <style>
         /* CSS Variables for Theming */
@@ -429,14 +429,15 @@
                 <div class="map-control-group">
                     <input type="checkbox" id="conus-airsigmet-toggle"><label for="conus-airsigmet-toggle">CONUS AIR/SIGMETs</label>
                 </div>
-                <!-- NEW: WMS Forecast Controls -->
+                <!-- UPDATED: WMS Forecast Controls (Bifrost/DataDocs style) -->
                 <div class="map-control-group" id="wms-controls-group">
-                    <input type="checkbox" id="wms-toggle"><label for="wms-toggle"><strong>Model Forecasts (WMS)</strong></label>
+                    <input type="checkbox" id="wms-toggle"><label for="wms-toggle"><strong>Layers (WMS)</strong></label>
                     <select id="wms-layer-select">
-                        <option value="GOES_East_CONUS_Band_02_PC">GOES East Visible (CONUS)</option>
-                        <option value="GOES_East_CONUS_Band_13_PC">GOES East Infrared (CONUS)</option>
-                        <!-- Other satellite layers you might explore later if you get the capabilities: -->
-                        <!-- <option value="GOES_East_CONUS_Band_08_PC">GOES East Water Vapor (CONUS)</option> -->
+                        <option value="NOAA_Visible">Visible Sat (GOES-East)</option>
+                        <option value="NOAA_IR">Infrared Sat (GOES-East)</option>
+                        <option value="NEXRAD">CONUS NEXRAD (Base Reflectivity)</option>
+                        <!-- Note: The below is a placeholder for AFWeather if authenticated -->
+                        <!-- <option value="AFW_Global">AFW Global (Auth Req)</option> -->
                     </select>
                 </div>
 
@@ -480,7 +481,6 @@
     <script>
     document.addEventListener('DOMContentLoaded', () => {
         const avwxApiKey = '4WY8GdvUoLiSQnsL6zl-m7KeH9vzRkqtJBoeQ5SmumM';
-        // Add your Google API Key here
         const googleApiKey = 'AIzaSyDL-Wt10ewdzPSXFWX1QwrdL4ZAqiRDp8M'; 
         const defaultAirports = ['KRDR', 'KLRF', 'KCHS', 'KMCF', 'KHST', 'TJNR', 'TJBQ', 'TISX', 'SKBO', 'TTCP'];
         let airports = JSON.parse(localStorage.getItem('myAirportList')) || defaultAirports;
@@ -514,8 +514,7 @@
         // UPDATED CORS PROXY URL for GitHub Pages Stability
         const CORS_PROXY_URL = 'https://corsproxy.io/?'; 
         
-        // --- WMS CONFIGURATION ---
-        const AFW_WMS_URL = 'https://ows.terrestris.de/osm/service?';
+        // --- WMS CONFIGURATION (UPDATED for NOAA & Bifrost Compatibility) ---
         let wmsLayer = null;
         const wmsToggle = document.getElementById('wms-toggle');
         const wmsLayerSelect = document.getElementById('wms-layer-select');
@@ -530,9 +529,11 @@
 
         const map = L.map('map').setView([38, -98], 4); 
         
-        // --- UPDATED TO ESRI WORLD TOPOGRAPHIC MAP (Terrain) ---
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ, TomTom, Intermap, iPC, USGS, FAO, NPS, NRCAN, GeoBase, Kadaster NL, Ordnance Survey, Esri Japan, METI, Esri China (Hong Kong), and the GIS User Community'
+        // --- UPDATED MAP PROVIDER: STADIA/STAMEN TERRAIN (Clean water, good mountains) ---
+        // Note: Stamen maps are now hosted by Stadia. This is the standard endpoint.
+        L.tileLayer('https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}{r}.png', {
+            maxZoom: 18,
+            attribution: '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a>, &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors'
         }).addTo(map);
         
         const flightCategories = {
@@ -1129,70 +1130,80 @@
             }
         }
 
-        // --- NEW WMS FUNCTIONS ---
-        // --- NEW toggleWmsLayer FUNCTION (Direct Tile Loading Attempt - NO Proxy, NO GetCapabilities Fetch) ---
-        function toggleWmsLayer() { // Note: No 'async' needed as no 'await' calls anymore
-            const layerName = wmsLayerSelect.value;
-            const wmsServerUrl = AFW_WMS_URL; 
+        // --- NEW WMS FUNCTIONS (UPDATED LOGIC for NOAA & Placeholder Bifrost) ---
+        function toggleWmsLayer() {
+            const layerKey = wmsLayerSelect.value;
+            
+            // --- Configuration for Publicly Available NOAA Layers (Best Match for DataDocs public equivalent) ---
+            let wmsServerUrl = '';
+            let layerName = '';
+            let format = 'image/png';
+            
+            if (layerKey === 'NOAA_Visible') {
+                wmsServerUrl = 'https://nowcoast.noaa.gov/arcgis/services/nowcoast/sat_meteo_imagery_time/MapServer/WMSServer';
+                layerName = '1'; // Band 2 (Visible) usually matches layer 1 or 2 in NOAA WMS
+            } else if (layerKey === 'NOAA_IR') {
+                wmsServerUrl = 'https://nowcoast.noaa.gov/arcgis/services/nowcoast/sat_meteo_imagery_time/MapServer/WMSServer';
+                layerName = '5'; // Band 13 (IR)
+            } else if (layerKey === 'NEXRAD') {
+                wmsServerUrl = 'https://nowcoast.noaa.gov/arcgis/services/nowcoast/radar_meteo_imagery_nexrad_time/MapServer/WMSServer';
+                layerName = '1'; // Base Reflectivity
+            } else if (layerKey === 'AFW_Global') {
+                 // ** PLACEHOLDER FOR AUTHENTICATED USERS **
+                 // If you are on a .mil network with CAC, you can swap this URL:
+                 // wmsServerUrl = 'https://generated.afweather.mil/wms/global_vis?'; 
+                 alert("This layer requires .mil network authentication and cannot be accessed from the public internet.");
+                 wmsToggle.checked = false;
+                 return;
+            }
 
             if (wmsToggle.checked) {
                 wmsStatusMessage.style.display = 'block';
-                wmsStatusMessage.style.color = ''; // Reset message color
-                wmsStatusMessage.textContent = 'Attempting to load WMS layer directly...';
+                wmsStatusMessage.style.color = ''; 
+                wmsStatusMessage.textContent = `Loading ${layerKey}...`;
 
-                // Remove existing layer if any
                 if (wmsLayer && map.hasLayer(wmsLayer)) {
                     map.removeLayer(wmsLayer);
                     wmsLayer = null; 
                 }
 
                 try {
-                    // Directly instantiate L.tileLayer.wms.
-                    // This relies on the browser's ability to load cross-origin images without fetch()'s strict CORS checks.
                     wmsLayer = L.tileLayer.wms(wmsServerUrl, {
                         layers: layerName,
-                        format: 'image/png',
+                        format: format,
                         transparent: true,
-                        version: '1.1.1', // Keep 1.1.1 for wider compatibility
-                        attribution: 'NOAA NowCoast Satellite WMS', 
-                        crs: L.CRS.EPSG4326, 
-                        styles: '', 
-                        opacity: 0.7,
-                        crossOrigin: true // Crucial for Leaflet to handle cross-origin image loading correctly
+                        version: '1.3.0', 
+                        attribution: 'NOAA NowCoast / AFWeather Data', 
+                        crs: L.CRS.EPSG3857, // Most NOAA/ArcGIS servers prefer 3857 or 4326
+                        opacity: 0.65,
+                        crossOrigin: true 
                     });
                     
-                    // Event listeners for visual feedback during loading
-                    wmsLayer.on('loading', function() {
-                        wmsStatusMessage.textContent = 'Loading WMS data...';
-                    });
-                    wmsLayer.on('load', function() {
-                        wmsStatusMessage.textContent = 'WMS Layer Loaded.';
-                        // Hide message after a few seconds on successful load
-                        setTimeout(() => { wmsStatusMessage.style.display = 'none'; }, 5000); 
+                    wmsLayer.on('loading', function() { wmsStatusMessage.textContent = 'Fetching tiles...'; });
+                    wmsLayer.on('load', function() { 
+                        wmsStatusMessage.textContent = 'Layer Loaded.';
+                        setTimeout(() => { wmsStatusMessage.style.display = 'none'; }, 3000); 
                     });
                     wmsLayer.on('tileerror', function(event) {
-                        // This fires if individual tiles fail to load even if the overall layer seems added
-                        console.error("WMS Tile Error:", event.error); // This would still go to the browser console
-                        wmsStatusMessage.textContent = 'Error loading some WMS tiles. The server might still be blocking direct access.';
-                        wmsStatusMessage.style.color = 'red'; // Indicate a problem
+                        console.error("WMS Tile Error:", event);
+                        wmsStatusMessage.textContent = 'Error loading tiles. (Check Network/CORS)';
+                        wmsStatusMessage.style.color = 'red'; 
                     });
 
-                    wmsLayer.addTo(map); // Add the WMS layer to the Leaflet map
+                    wmsLayer.addTo(map); 
 
                 } catch (error) {
-                    // This catch block would primarily handle errors in Leaflet's WMS constructor itself,
-                    // not network errors related to tile loading, which go to tileerror.
-                    console.error("WMS Integration Error (Layer Creation):", error);
-                    wmsStatusMessage.textContent = `WMS Layer Creation FAILED: ${error.message}`;
+                    console.error("WMS Integration Error:", error);
+                    wmsStatusMessage.textContent = `WMS FAILED: ${error.message}`;
                     wmsStatusMessage.style.color = 'red';
                 }
 
-            } else { // If WMS toggle is unchecked (off)
+            } else { 
                 if (wmsLayer && map.hasLayer(wmsLayer)) {
-                    map.removeLayer(wmsLayer); // Remove the layer from the map
-                    wmsLayer = null; // Clear the layer object
+                    map.removeLayer(wmsLayer); 
+                    wmsLayer = null; 
                 }
-                wmsStatusMessage.style.display = 'none'; // Hide the status message
+                wmsStatusMessage.style.display = 'none'; 
             }
         }
 
